@@ -1,5 +1,4 @@
-[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/9zKiFNZz)
-# module2-claims
+[![Review Assignment Due Date](https://classroom.github.com/assets/deadline-readme-button-22041afd0340ce965d47ae6ef1cefeee28c7c493a6346c4f15d667ab976d596c.svg)](https://classroom.github.com/a/9zKiFNZz) \# module2-claims
 
 This is a template repository for the module 2 group assignment for PSTAT197A. The assignment objective is to develop a predictive model for webpage classification based on scraping text content.
 
@@ -47,7 +46,7 @@ We have provided a collection of unlabeled pages for you to classify. Once proje
 
 1.  Develop the best predictive model you can for (a) binary classification and also for (b) the multi-class setting. You can use any preprocessing and any modeling technique you like, including ones not discussed in class (consider exploring RNN or SVM). Export a deployable copy of each model and a set of predictions from each model on the test data `claims-test.RData`. Predictions should be formatted as a single data frame named `pred_df` with columns
 
-    -    `.id` containing the URL ID
+    -   `.id` containing the URL ID
 
     -   `bclass.pred` containing the predicted label for the binary class setting
 
