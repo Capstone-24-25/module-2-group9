@@ -1,6 +1,6 @@
 ## this script contains functions for preprocessing
 ## claims data; intended to be sourced 
-require(tidyverse)
+require(tidyverse) 
 require(tidytext)
 require(textstem)
 require(rvest)

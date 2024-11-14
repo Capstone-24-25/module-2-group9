@@ -1,6 +1,6 @@
 ---
 title: "Summary of exploratory tasks"
-author: 'YOUR NAMES HERE'
+author: 'Rebecca Chang,'
 date: today
 ---
 
@@ -14,7 +14,7 @@ Do bigrams capture additional information relevant to the classification of inte
 
 ### Neural net
 
-Summarize the neural network model you trained by desribing:
+Summarize the neural network model you trained by describing:
 
 -   architecture
 
