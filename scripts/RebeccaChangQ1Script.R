@@ -7,6 +7,9 @@ require(rvest)
 require(qdapRegex)
 require(stopwords)
 require(tokenizers)
+set.seed(110122) 
+
+# WITHOUT HEADERS
 
 # function to parse html and clean text
 parse_fn <- function(.html){
@@ -63,17 +66,17 @@ nlp_fn <- function(parse_data.out){
 #################
 
 # can comment entire section out if no changes to preprocessing.R
-source('Desktop/module-2-group9/scripts/preprocessing.R')
+source('module-2-group9/scripts/preprocessing.R')
 
 # load raw data
-load('Desktop/module-2-group9/data/claims-raw.RData')
+load('module-2-group9/data/claims-raw.RData')
 
 # preprocess (will take a minute or two)
 claims_clean <- claims_raw %>%
   parse_data()
 
 # export
-save(claims_clean, file = 'Desktop/module-2-group9/data/claims-clean-example.RData')
+save(claims_clean, file = 'module-2-group9/data/claims-clean-example.RData')
 
 ## MODEL TRAINING (NN)
 ######################
@@ -83,7 +86,7 @@ library(keras)
 library(tensorflow)
 
 # load cleaned data
-load('Desktop/module-2-group9/data/claims-clean-example.RData')
+load('module-2-group9/data/claims-clean-example.RData')
 
 # partition
 set.seed(110122)
@@ -97,9 +100,9 @@ train_labels <- training(partitions) %>%
   as.numeric() - 1
 
 # If having library conflicts
-install.packages("keras", type = "source")
-library(keras)
-install_keras()
+# install.packages("keras", type = "source")
+# library(keras)
+# install_keras()
 
 # create a preprocessing layer
 preprocess_layer <- layer_text_vectorization(
@@ -139,7 +142,15 @@ history <- model %>%
 
 ## CHECK TEST SET ACCURACY HERE
 model$weights
-evaluation <- evaluate(model, test_text, test_labels)
+
+test_text <- testing(partitions) %>% 
+  pull(text_clean)
+
+test_labels <- testing(partitions) %>% 
+  pull(bclass) %>% 
+  as.numeric() -1
+
+evaluation <- evaluate(model, test_text, test_labels) # 0.775/0.785
 
 # save the entire model as a SavedModel
 save_model_tf(model, "results/example-model")
@@ -149,10 +160,10 @@ save_model_tf(model, "results/example-model")
 require(tidyverse)
 require(keras)
 require(tensorflow)
-load('data/claims-test.RData')
-load('data/claims-raw.RData')
-source('scripts/preprocessing.R')
-tf_model <- load_model_tf('results/example-model')
+load('module-2-group9/data/claims-test.RData')
+load('module-2-group9/data/claims-raw.RData')
+source('module-2-group9/scripts/preprocessing.R')
+tf_model <- load_model_tf('module-2-group9/results/example-model')
 
 # apply preprocessing pipeline
 clean_df <- claims_test %>%
@@ -181,21 +192,12 @@ save(pred_df, file = 'results/example-preds.RData')
 
 
 
-###### with header
-## this script contains functions for preprocessing
-## claims data; intended to be sourced 
-require(tidyverse) 
-require(tidytext)
-require(textstem)
-require(rvest)
-require(qdapRegex)
-require(stopwords)
-require(tokenizers)
+# WITH HEADERS
 
 # function to parse html and clean text
-parse_fn2 <- function(.html){
+parse_fn <- function(.html){
   read_html(.html) %>%
-    html_elements('p, h1') %>%
+    html_elements('p, h1, h2, h3, h4, h5, h6') %>%
     html_text2() %>%
     str_c(collapse = ' ') %>%
     rm_url() %>%
@@ -213,16 +215,16 @@ parse_fn2 <- function(.html){
 }
 
 # function to apply to claims data
-parse_data2 <- function(.df){
+parse_data <- function(.df){
   out <- .df %>%
     filter(str_detect(text_tmp, '<!')) %>%
     rowwise() %>%
-    mutate(text_clean = parse_fn2(text_tmp)) %>%
+    mutate(text_clean = parse_fn(text_tmp)) %>%
     unnest(text_clean) 
   return(out)
 }
 
-nlp_fn2 <- function(parse_data.out){
+nlp_fn <- function(parse_data.out){
   out <- parse_data.out %>% 
     unnest_tokens(output = token, 
                   input = text_clean, 
@@ -242,22 +244,21 @@ nlp_fn2 <- function(parse_data.out){
   return(out)
 }
 
-
 ## PREPROCESSING
 #################
 
 # can comment entire section out if no changes to preprocessing.R
-source('Desktop/module-2-group9/scripts/preprocessing.R')
+source('module-2-group9/scripts/preprocessing.R')
 
 # load raw data
-load('Desktop/module-2-group9/data/claims-raw.RData')
+load('module-2-group9/data/claims-raw.RData')
 
 # preprocess (will take a minute or two)
 claims_clean <- claims_raw %>%
   parse_data()
 
 # export
-save(claims_clean, file = 'Desktop/module-2-group9/data/claims-clean-example.RData')
+save(claims_clean, file = 'module-2-group9/data/claims-clean-example.RData')
 
 ## MODEL TRAINING (NN)
 ######################
@@ -267,7 +268,7 @@ library(keras)
 library(tensorflow)
 
 # load cleaned data
-load('Desktop/module-2-group9/data/claims-clean-example.RData')
+load('module-2-group9/data/claims-clean-example.RData')
 
 # partition
 set.seed(110122)
@@ -281,9 +282,9 @@ train_labels <- training(partitions) %>%
   as.numeric() - 1
 
 # If having library conflicts
-install.packages("keras", type = "source")
-library(keras)
-install_keras()
+# install.packages("keras", type = "source")
+# library(keras)
+# install_keras()
 
 # create a preprocessing layer
 preprocess_layer <- layer_text_vectorization(
@@ -323,7 +324,15 @@ history <- model %>%
 
 ## CHECK TEST SET ACCURACY HERE
 model$weights
-evaluation <- evaluate(model, test_text, test_labels)
+
+test_text <- testing(partitions) %>% 
+  pull(text_clean)
+
+test_labels <- testing(partitions) %>% 
+  pull(bclass) %>% 
+  as.numeric() -1
+
+evaluation <- evaluate(model, test_text, test_labels) # 0.775/0.785
 
 # save the entire model as a SavedModel
 save_model_tf(model, "results/example-model")
@@ -333,10 +342,10 @@ save_model_tf(model, "results/example-model")
 require(tidyverse)
 require(keras)
 require(tensorflow)
-load('data/claims-test.RData')
-load('data/claims-raw.RData')
-source('scripts/preprocessing.R')
-tf_model <- load_model_tf('results/example-model')
+load('module-2-group9/data/claims-test.RData')
+load('module-2-group9/data/claims-raw.RData')
+source('module-2-group9/scripts/preprocessing.R')
+tf_model <- load_model_tf('module-2-group9/results/example-model')
 
 # apply preprocessing pipeline
 clean_df <- claims_test %>%
@@ -362,4 +371,3 @@ pred_df <- clean_df %>%
   select(.id, bclass.pred)
 
 save(pred_df, file = 'results/example-preds.RData')
-
