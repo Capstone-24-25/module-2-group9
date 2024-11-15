@@ -78,5 +78,6 @@ history <- model %>%
 
 ## CHECK TEST SET ACCURACY HERE
 
+
 # save the entire model as a SavedModel
 save_model_tf(model, "results/example-model")
