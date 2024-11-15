@@ -1,12 +1,156 @@
 
 ## Script for Kuan-I Lu's work
 
+### Preliminary task 1
+
+```{r}
+install.packages("xfun")
+packageVersion("xfun")
+library(tidyverse) 
+require(tidytext)
+require(textstem)
+require(rvest)
+require(qdapRegex)
+require(stopwords)
+require(tokenizers)
+```
+
+```{r}
+# predefined functions
+# function to parse html and clean text
+parse_fn <- function(.html){
+  read_html(.html) %>%
+    html_elements('p, h1') %>% # Include header to created augmented html text
+    html_text2() %>%
+    str_c(collapse = ' ') %>%
+    rm_url() %>%
+    rm_email() %>%
+    str_remove_all('\'') %>%
+    str_replace_all(paste(c('\n', 
+                            '[[:punct:]]', 
+                            'nbsp', 
+                            '[[:digit:]]', 
+                            '[[:symbol:]]'),
+                          collapse = '|'), ' ') %>%
+    str_replace_all("([a-z])([A-Z])", "\\1 \\2") %>%
+    tolower() %>%
+    str_replace_all("\\s+", " ")
+}
+
+# function to apply to claims data
+parse_data <- function(.df){
+  out <- .df %>%
+    filter(str_detect(text_tmp, '<!')) %>%
+    rowwise() %>%
+    mutate(text_clean = parse_fn(text_tmp)) %>%
+    unnest(text_clean) 
+  return(out)
+}
+
+nlp_fn <- function(parse_data.out){
+  out <- parse_data.out %>% 
+    unnest_tokens(output = token, 
+                  input = text_clean, 
+                  token = 'words',
+                  stopwords = str_remove_all(stop_words$word, 
+                                             '[[:punct:]]')) %>%
+    mutate(token.lem = lemmatize_words(token)) %>%
+    filter(str_length(token.lem) > 2) %>%
+    count(.id, bclass, token.lem, name = 'n') %>%
+    bind_tf_idf(term = token.lem, 
+                document = .id,
+                n = n) %>%
+    pivot_wider(id_cols = c('.id', 'bclass'),
+                names_from = 'token.lem',
+                values_from = 'tf_idf',
+                values_fill = 0)
+  return(out)
+}
+```
+
+```{r}
+# Load and parse the data
+# load raw data
+load('../data/claims-raw.RData')
+
+# preprocess (will take a minute or two)
+claims_clean_head <- claims_raw %>%
+  parse_data()
+
+# export
+save(claims_clean_head, file = '../data/claims-clean-head.RData')
+```
+
+  Visualize the dataset, claims_clean_head (2140), which is our starting point
+  
+```{r}
+claims_clean_head %>% head()
+
+claims_clean_head %>% ggplot(aes(x = bclass)) + geom_bar()
+claims_clean_head %>% ggplot(aes(x = mclass)) + geom_bar()
+
+claims_clean_head$text_clean %>% length()
+```
+
+```{r}
+# Create task1_data for task 1
+task1_data = claims_clean_head %>% 
+  select(.id, bclass, text_clean)
+
+task1_data %>% head()
+```
+
+  tokenize the texts
+  
+```{r}
+stopwords_nopunct <- stopwords(language = 'en', source = 'snowball') %>% 
+  str_remove_all('[[:punct:]]')
+
+stopwords_nopunct %>% length()
+
+# Tokenize and construct the tf_idf term matrix
+task1_data_tfidf_matrix = task1_data %>%
+  mutate(text_clean = str_trim(text_clean)) %>%
+  filter(str_length(text_clean) > 5) %>%
+  unnest_tokens(output = 'token', 
+                input = text_clean) %>%
+  group_by(.id, bclass) %>%
+  count(token) %>%
+  bind_tf_idf(term = token, 
+              document = .id, 
+              n = n) %>%
+  pivot_wider(id_cols = c(.id, bclass), 
+              names_from = token, 
+              values_from = tf_idf,
+              values_fill = 0) %>%
+  ungroup() 
+
+# Remove stop words
+task1_data_tfidf_matrix_clean <- task1_data_tfidf_matrix[, !names(task1_data_tfidf_matrix) %in% stopwords_nopunct]
+
+```
+  
+  Perform PCN, and use the principle components(tokens) to fit a binary logistic regression
+
+```{r}
+# Refer to week 5 lecture and class activity
+# path to activity files on repo
+url <- 'https://raw.githubusercontent.com/pstat197/pstat197a/main/materials/activities/data/'
+# load a few functions for the activity
+source(paste(url, 'projection-functions.R', sep = ''))
+
+```
+  
+```{r}
+library(sparsesvd)
+proj_out <- projection_fn(task1_data_tfidf_matrix_clean %>% select(-.id, -bclass), .prop = 0.7)
+```
+
+
+logistic principal component regression:
+
+  use PCA to reduce variables, adn then use the reduces variables to do logistic regression.
 
 
 
-
-
-
-
-
-
+neural network is optional, still do it though
