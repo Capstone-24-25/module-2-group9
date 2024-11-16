@@ -102,11 +102,6 @@ no_headers_tfidf <- claims_clean %>%
               values_fill = 0)
 
 
-
-#turn into tf-idf
-#no_headers_tfidf <- claims_clean %>% 
-#  parse_data()
-
 # partition data
 set.seed(110122)
 partitions1 <- no_headers_tfidf %>% initial_split(prop = 0.8)
