@@ -7,9 +7,7 @@ date: today
 ### HTML scraping
 
 Does including header content improve predictions? Answer the question and provide quantitative evidence supporting your answer.
-
-Including header content does not seem to improve predictions. When using only paragraphs
-content, we obtain an accuracy of 0.835. However, when using both paragraphs and headers content, we obtain an accuracy of 0.759.
+Including header content does not seem to improve predictions. Our metrics of interest were sensitivity, specificity, accuracy, and ROC AUC. When using only paragraphs content, we obtain an accuracy of 0.835. However, when using both paragraphs and headers content, we obtain an accuracy of 0.759.
 
 ### Bigrams
 
