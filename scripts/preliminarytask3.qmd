@@ -1,0 +1,191 @@
+---
+title: "preliminarytask3"
+format: html
+editor: visual
+---
+
+### Preliminary task 3
+
+benchmark: 
+  accuracy: 0.835
+  roc_auc: 0.878
+
+Attempt to use NN to reach similar result
+
+```{r}
+#install.packages("text")
+library(tidyverse)
+library(tidymodels)
+library(tidytext)
+library(keras)
+library(tensorflow)
+library(text)
+require(textstem)
+require(rvest)
+require(qdapRegex)
+require(stopwords)
+require(tokenizers)
+library(reticulate)
+
+#install_keras(tensorflow = "2.16")
+```
+
+```{r}
+# predefined functions
+# function to parse html and clean text
+parse_fn <- function(.html){
+  read_html(.html) %>%
+    html_elements('p, h1, h2, h3, h4, h5') %>% # Include header for better result, product of trial and error
+    html_text2() %>%
+    str_c(collapse = ' ') %>%
+    rm_url() %>%
+    rm_email() %>%
+    str_remove_all('\'') %>%
+    str_replace_all(paste(c('\n', 
+                            '[[:punct:]]', 
+                            'nbsp', 
+                            '[[:digit:]]', 
+                            '[[:symbol:]]'),
+                          collapse = '|'), ' ') %>%
+    str_replace_all("([a-z])([A-Z])", "\\1 \\2") %>%
+    tolower() %>%
+    str_replace_all("\\s+", " ")
+}
+
+# function to apply to claims data
+parse_data <- function(.df){
+  out <- .df %>%
+    filter(str_detect(text_tmp, '<!')) %>%
+    rowwise() %>%
+    mutate(text_clean = parse_fn(text_tmp)) %>%
+    unnest(text_clean) 
+  return(out)
+}
+
+nlp_fn <- function(parse_data.out){
+  out <- parse_data.out %>% 
+    unnest_tokens(output = token, 
+                  input = text_clean, 
+                  token = 'words',
+                  stopwords = str_remove_all(stop_words$word, 
+                                             '[[:punct:]]')) %>%
+    mutate(token.lem = lemmatize_words(token)) %>%
+    filter(str_length(token.lem) > 2) %>%
+    count(.id, bclass, token.lem, name = 'n') %>%
+    bind_tf_idf(term = token.lem, 
+                document = .id,
+                n = n) %>%
+    pivot_wider(id_cols = c('.id', 'bclass'),
+                names_from = 'token.lem',
+                values_from = 'tf_idf',
+                values_fill = 0)
+  return(out)
+}
+
+
+# Load and parse the data
+# load raw data
+load('../data/claims-raw.RData')
+
+# preprocess (will take a minute or two)
+claims_clean <- claims_raw %>%
+  parse_data()
+
+claims_clean = claims_clean %>% 
+  select(.id, mclass, bclass, text_clean)
+
+```
+
+We now have cleaned texts, which is claims_clean. This will be our starting point
+
+
+```{r}
+# Tokenize and construct the tf_idf term matrix
+claims_clean_tfidf = claims_clean %>%
+  mutate(text_clean = str_trim(text_clean)) %>%
+  filter(str_length(text_clean) > 5) %>%
+  unnest_tokens(output = 'token', 
+                input = text_clean) %>%
+  group_by(.id, bclass, mclass) %>%
+  count(token) %>%
+  bind_tf_idf(term = token, 
+              document = .id, 
+              n = n) %>%
+  pivot_wider(id_cols = c(.id, bclass, mclass), 
+              names_from = token, 
+              values_from = tf_idf,
+              values_fill = 0) %>%
+  ungroup() 
+
+# Load a list of stop words
+stopwords_nopunct <- stopwords(language = 'en', source = 'snowball') %>% 
+  str_remove_all('[[:punct:]]')
+
+# Remove stop words
+claims_clean_tfidf <- claims_clean_tfidf[, !names(claims_clean_tfidf) %in% stopwords_nopunct]
+
+```
+
+```{r}
+# partition
+set.seed(111524)
+partitions <- claims_clean_tfidf %>%
+  initial_split(prop = 0.8)
+
+x_train = training(partitions) %>% 
+  select(-mclass, -bclass, -.id) %>% 
+  as.matrix
+
+y_train = training(partitions) %>% 
+  pull(bclass) %>% 
+  factor() %>% # use as.matrix for multiclass
+  as.numeric() - 1
+
+x_test = testing(partitions) %>% 
+  select(-mclass, -bclass, -.id) %>% 
+  as.matrix()
+
+y_test = testing(partitions) %>% 
+  pull(mclass, bclass) %>% 
+  as.matrix()
+  
+```
+
+```{r}
+# Specify model type
+library(keras3)
+
+# Model building
+model <- keras_model_sequential(input_shape = ncol(x_train)) %>%
+  layer_dense(128) %>%
+  layer_dense(128) %>% 
+  layer_dense(1) %>%
+  layer_activation(activation = 'sigmoid')
+
+summary(model)
+```
+
+```{r}
+# compile the model
+model %>%
+  compile(
+    loss = 'binary_crossentropy',
+    optimizer = optimizer_adam(),
+    metrics = list('binary_accuracy',  metric_auc())
+  )
+```
+
+```{r}
+# Fit the model, with 10 epoch, and cross validation with validation split of 0.2
+history <- model %>%
+  fit(x = x_train,
+      y = y_train,
+      epochs = 10,
+      validation_split = 0.2)
+```
+
+```{r}
+plot(history)
+```
+
+The best accuracy we reached with our testing data is 0.8571, and the best roc_auc we get with out testing dataset is 0.907
