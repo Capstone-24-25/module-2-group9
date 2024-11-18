@@ -22,7 +22,7 @@ library(keras)
 library(tensorflow)
 
 # load cleaned data
-load('data/claims-clean-example.RData')
+load('../data/claims-clean-example.RData')
 
 # partition
 set.seed(110122)

@@ -6,9 +6,7 @@ editor: visual
 
 ### Preliminary task 3
 
-benchmark: 
-  accuracy: 0.835
-  roc_auc: 0.878
+benchmark: accuracy: 0.835 roc_auc: 0.878
 
 Attempt to use NN to reach similar result
 
@@ -98,7 +96,6 @@ claims_clean = claims_clean %>%
 
 We now have cleaned texts, which is claims_clean. This will be our starting point
 
-
 ```{r}
 # Tokenize and construct the tf_idf term matrix
 claims_clean_tfidf = claims_clean %>%
@@ -157,8 +154,8 @@ library(keras3)
 
 # Model building
 model <- keras_model_sequential(input_shape = ncol(x_train)) %>%
-  layer_dense(128) %>%
-  layer_dense(128) %>% 
+  layer_dense(256) %>%
+  layer_dense(256) %>% 
   layer_dense(1) %>%
   layer_activation(activation = 'sigmoid')
 
@@ -180,7 +177,7 @@ model %>%
 history <- model %>%
   fit(x = x_train,
       y = y_train,
-      epochs = 10,
+      epochs = 8,
       validation_split = 0.2)
 ```
 

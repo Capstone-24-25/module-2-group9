@@ -160,9 +160,6 @@ benchmark:
   accuracy: 0.835
   roc_auc: 0.878
 
-Maybe later:
-  We attempt to use DistilBERT to yield better result
-
 ```{r}
 #install.packages("text")
 library(tidyverse)
@@ -171,7 +168,8 @@ library(tidytext)
 library(keras)
 library(tensorflow)
 library(text)
-install_keras(tensorflow = "2.16")
+library(reticulate)
+#install_keras(tensorflow = "2.16")
 ```
 
 ```{r}
@@ -238,6 +236,8 @@ claims_clean <- claims_raw %>%
 claims_clean = claims_clean %>% 
   select(.id, mclass, bclass, text_clean)
 
+
+write_csv(claims_clean, "claims_clean.csv")
 ```
 
 We now have cleaned texts, which is claims_clean. This will be our starting point
@@ -336,24 +336,646 @@ plot(history)
 The best accuracy we reached with our testing data is 0.8571, and the best roc_auc we get with out testing dataset is 0.907
 
 ### Primary task 1
- 
-#### Approach 1: RNN (2 hidden layers)
+
+benchmark: 
+  accuracy: 0.835
+  roc_auc: 0.878
+
+#### Approach 4: modify preprocessing and then ANN
+
+Many of the approaches doesn't yield ideal results, falling short from the benchmarked 0.835
+
+Approach differently from refining preprocessing, lets include principle component of unigrams and bigrams
 
 ```{r}
-library(keras3)
+# Load necessary packages
+require(tidyverse)
+require(tidytext)
+require(textstem)
+require(rvest)
+require(qdapRegex)
+require(stopwords)
+require(tokenizers)
+library(tidymodels)
+library(keras)
+library(tensorflow)
+library(text)
+library(reticulate)
+library(sparsesvd)
+
+# If model doesn't work, delete virtualenvs in documents and run this to load the right version of tf
+#install_keras(tensorflow = "2.16")
+```
+
+```{r}
+# predefined functions
+# function to parse html and clean text
+parse_fn <- function(.html){
+  read_html(.html) %>%
+    html_elements('p, h1, h2, h3, h4, h5') %>% # Include header for better result, product of trial and error
+    html_text2() %>%
+    str_c(collapse = ' ') %>%
+    rm_url() %>%
+    rm_email() %>%
+    str_remove_all('\'') %>%
+    str_replace_all(paste(c('\n', 
+                            '[[:punct:]]', 
+                            'nbsp', 
+                            '[[:digit:]]', 
+                            '[[:symbol:]]'),
+                          collapse = '|'), ' ') %>%
+    str_replace_all("([a-z])([A-Z])", "\\1 \\2") %>%
+    tolower() %>%
+    str_replace_all("\\s+", " ")
+}
+
+# function to apply to claims data
+parse_data <- function(.df){
+  out <- .df %>%
+    filter(str_detect(text_tmp, '<!')) %>%
+    rowwise() %>%
+    mutate(text_clean = parse_fn(text_tmp)) %>%
+    unnest(text_clean) 
+  return(out)
+}
 ```
 
 
 ```{r}
-claims_clean = claims_clean %>% mutate(bclass = ifelse(bclass == "Relevant claim content", 1, 0))
+# Load and parse the data
+# load raw data
+load('../data/claims-raw.RData')
 
-# Tokenize and pad the texts
-texts = claims_clean$text_clean
-labels_bin = claims_clean$bclass
-labels_mult = claims_clean$mclass
+# preprocess (will take a minute or two)
+claims_clean <- claims_raw %>%
+  parse_data()
 
-claims_clean %>% head()
+claims_clean = claims_clean %>% 
+  select(.id, mclass, bclass, text_clean)
 
+```
+
+##### binary class
+
+```{r}
+# Load and define a list of stop words
+data("stop_words")
+stop_words = stop_words %>% 
+  filter(lexicon == "snowball") %>% 
+  mutate(word = word %>% str_replace_all(paste(c('\n', 
+                            '[[:punct:]]', 
+                            'nbsp', 
+                            '[[:digit:]]', 
+                            '[[:symbol:]]'), collapse = '|'), '') %>% 
+           str_replace_all("([a-z])([A-Z])", "\\1 \\2") %>% tolower()) %>% 
+  distinct(word)
+
+# Tokenize and construct the tf_idf term matrix of unigrams
+claims_unigram_tfidf = claims_clean %>%
+  mutate(text_clean = str_trim(text_clean)) %>%
+  filter(str_length(text_clean) > 5) %>%
+  unnest_tokens(output = 'unigram', 
+                input = text_clean) %>%   #### tokenize unigram
+  anti_join(stop_words, by = c("unigram" = "word")) %>% #### remove stopwords
+  group_by(.id, bclass) %>% #### change group for multiclass
+  count(unigram) %>%
+  bind_tf_idf(term = unigram, 
+              document = .id, 
+              n = n) %>%
+  pivot_wider(id_cols = c(.id, bclass), #### change id_cols for multiclass
+              names_from = unigram, 
+              values_from = tf_idf,
+              values_fill = 0) %>%  #### create tf_idf matrix
+  ungroup() 
+
+# Tokenize and construct the tf_idf term matrix of bigrams
+claims_bigram_tfidf = claims_clean %>%
+  mutate(text_clean = str_trim(text_clean)) %>%
+  filter(str_length(text_clean) > 5) %>%
+  unnest_tokens(output = 'bigram', 
+                input = text_clean,
+                token = "ngrams", n = 2) %>%   #### tokenize bigram
+  separate(bigram, c("word1", "word2"), sep = " ") %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word) %>% 
+  unite(bigram, word1, word2, sep = " ") %>% #### remove bigrams containing stopwords
+  group_by(.id, bclass) %>% #### change group for multiclass
+  count(bigram) %>%
+  bind_tf_idf(term = bigram, 
+              document = .id, 
+              n = n) %>%
+  pivot_wider(id_cols = c(.id, bclass), #### change id_cols for multiclass
+              names_from = bigram, 
+              values_from = tf_idf,
+              values_fill = 0) %>%  #### create tf_idf matrix
+  ungroup() 
+
+# combine the two datasets
+claims_tfidf = claims_unigram_tfidf %>% right_join(claims_bigram_tfidf, by = c(".id" = ".id", "bclass" = "bclass"))
+```
+
+
+```{r}
+# Split the data to training and testing with 0.8/0.2, stratified on 
+set.seed(111524)
+bclass_partition = initial_split(claims_tfidf, prop = 0.8, strata = bclass)
+
+# Define training and testing set. Remove columns with zero variance
+bclass_train = training(bclass_partition)
+bclass_train_x = bclass_train %>% select(-.id, -bclass) %>% as.matrix() 
+bclass_train_y = bclass_train %>% pull(bclass) %>% as.numeric() - 1
+
+bclass_test = testing(bclass_partition)
+bclass_test_x = bclass_test %>% select(-.id, -bclass) %>% as.matrix()
+bclass_test_y = bclass_test %>% pull(bclass)
+  
+```
+
+
+```{r}
+# build the NN model
+# Specify model type
+library(keras3)
+
+# Model building, 2 hidden layers
+model <- keras_model_sequential(input_shape = ncol(bclass_train_x)) %>%
+  layer_dense(128) %>%
+  layer_dense(128) %>% 
+  layer_dense(1) %>%  # output layer, use softmax for multiclass
+  layer_activation(activation = 'sigmoid')
+
+summary(model)
+```
+
+
+```{r}
+# compile the model
+model %>%
+  compile(
+    loss = 'binary_crossentropy',
+    optimizer = optimizer_adam(),
+    metrics = list('binary_accuracy',  metric_auc())
+  )
+
+
+# Fit the model, with 10 epoch, and cross validation with validation split of 0.2
+history = model %>%
+  fit(x = bclass_train_x,
+      y = bclass_train_y,
+      epochs = 8,
+      validation_split = 0.2)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Approach 5: going back to FFNN, task 3 result good enough
+
+benchmark: accuracy: 0.835 roc_auc: 0.878
+
+Attempt to use NN to reach similar result
+
+```{r}
+#install.packages("text")
+library(tidyverse)
+library(tidymodels)
+library(tidytext)
+library(keras)
+library(tensorflow)
+library(text)
+require(textstem)
+require(rvest)
+require(qdapRegex)
+require(stopwords)
+require(tokenizers)
+library(reticulate)
+library(purrr)
+
+#install_keras(tensorflow = "2.16")
+```
+
+```{r}
+# predefined functions
+# function to parse html and clean text
+parse_fn <- function(.html){
+  read_html(.html) %>%
+    html_elements('p, h1, h2, h3, h4, h5') %>% # Include header for better result, product of trial and error
+    html_text2() %>%
+    str_c(collapse = ' ') %>%
+    rm_url() %>%
+    rm_email() %>%
+    str_remove_all('\'') %>%
+    str_replace_all(paste(c('\n', 
+                            '[[:punct:]]', 
+                            'nbsp', 
+                            '[[:digit:]]', 
+                            '[[:symbol:]]'),
+                          collapse = '|'), ' ') %>%
+    str_replace_all("([a-z])([A-Z])", "\\1 \\2") %>%
+    tolower() %>%
+    str_replace_all("\\s+", " ")
+}
+
+# function to apply to claims data
+parse_data <- function(.df){
+  out <- .df %>%
+    filter(str_detect(text_tmp, '<!')) %>%
+    rowwise() %>%
+    mutate(text_clean = parse_fn(text_tmp)) %>%
+    unnest(text_clean) 
+  return(out)
+}
+
+nlp_fn <- function(parse_data.out){
+  out <- parse_data.out %>% 
+    unnest_tokens(output = token, 
+                  input = text_clean, 
+                  token = 'words',
+                  stopwords = str_remove_all(stop_words$word, 
+                                             '[[:punct:]]')) %>%
+    mutate(token.lem = lemmatize_words(token)) %>%
+    filter(str_length(token.lem) > 2) %>%
+    count(.id, bclass, token.lem, name = 'n') %>%
+    bind_tf_idf(term = token.lem, 
+                document = .id,
+                n = n) %>%
+    pivot_wider(id_cols = c('.id', 'bclass'),
+                names_from = 'token.lem',
+                values_from = 'tf_idf',
+                values_fill = 0)
+  return(out)
+}
+
+
+# Load and parse the data
+# load raw data
+load('../data/claims-raw.RData')
+
+# preprocess (will take a minute or two)
+claims_clean <- claims_raw %>%
+  parse_data()
+
+claims_clean = claims_clean %>% 
+  select(.id, mclass, bclass, text_clean)
+
+```
+
+We now have cleaned texts, which is claims_clean. This will be our starting point
+
+```{r}
+# Tokenize and construct the tf_idf term matrix
+claims_clean_tfidf = claims_clean %>%
+  mutate(text_clean = str_trim(text_clean)) %>%
+  filter(str_length(text_clean) > 5) %>%
+  unnest_tokens(output = 'token', 
+                input = text_clean) %>%
+  group_by(.id, bclass, mclass) %>%
+  count(token) %>%
+  bind_tf_idf(term = token, 
+              document = .id, 
+              n = n) %>%
+  pivot_wider(id_cols = c(.id, bclass, mclass), 
+              names_from = token, 
+              values_from = tf_idf,
+              values_fill = 0) %>%
+  ungroup() 
+
+# Load a list of stop words
+stopwords_nopunct <- stopwords(language = 'en', source = 'snowball') %>% 
+  str_remove_all('[[:punct:]]')
+
+# Remove stop words
+claims_clean_tfidf <- claims_clean_tfidf[, !names(claims_clean_tfidf) %in% stopwords_nopunct]
+
+```
+
+##### binary class
+
+```{r}
+# partition
+set.seed(111524)
+partitions <- claims_clean_tfidf %>%
+  initial_split(prop = 0.8)
+
+x_train = training(partitions) %>% 
+  select(-mclass, -bclass, -.id) %>% 
+  as.matrix
+
+y_train = training(partitions) %>% 
+  pull(bclass) %>% 
+  factor() %>% 
+  as.numeric() - 1
+binary_levels = levels(training(partitions) %>% pull(bclass) %>% factor())
+
+x_test = testing(partitions) %>% 
+  select(-mclass, -bclass, -.id) %>% 
+  as.matrix()
+
+y_test = testing(partitions) %>% 
+  pull(bclass) %>% 
+  factor() %>% 
+  as.numeric() - 1
+  
+```
+
+```{r}
+set.seed(111524)
+# Specify model type
+library(keras3)
+
+# Model building
+model <- keras_model_sequential(input_shape = ncol(x_train)) %>%
+  layer_dense(256) %>%
+  layer_dense(256) %>% 
+  layer_dense(1) %>%
+  layer_activation(activation = 'sigmoid')
+
+summary(model)
+```
+
+```{r}
+set.seed(111524)
+# compile the model
+model %>%
+  compile(
+    loss = 'binary_crossentropy',
+    optimizer = optimizer_adam(),
+    metrics = list('binary_accuracy',  metric_auc())
+  )
+```
+
+```{r}
+set.seed(111524)
+# Fit the model, with 10 epoch, and cross validation with validation split of 0.2
+history <- model %>%
+  fit(x = x_train,
+      y = y_train,
+      epochs = 6)
+```
+
+###### Evaluate prediction
+
+
+```{r}
+# Evaluate accuracy on testing set
+test_results <- model %>% evaluate(x_test, y_test)
+```
+
+  Our testing accuracy in theh etstin gdata is 0.82, which is the best we can obtain.
+
+###### Make predictions on testing dataset
+
+```{r}
+# Import the claims_test dataset
+load('../data/claims-test.RData')
+
+# Clean clains_test
+claims_test_clean <- claims_test %>%
+  parse_data()
+claims_test_clean = claims_test_clean %>% 
+  select(.id, text_clean)
+
+# Notice there are 19 observations with an empty string, we cannot predict any value from that
+# This issue may be from the parsing but we will investigate later
+claims_test_clean %>% filter(text_clean == "")
+
+# Tokenize and construct the tf_idf term matrix
+claims_test_tfidf = claims_test_clean %>%
+  mutate(text_clean = str_trim(text_clean)) %>% 
+  unnest_tokens(output = 'token', 
+                input = text_clean) %>% 
+  group_by(.id) %>%
+  count(token) %>%
+  bind_tf_idf(term = token, 
+              document = .id, 
+              n = n) %>%
+  pivot_wider(id_cols = c(.id), 
+              names_from = token, 
+              values_from = tf_idf,
+              values_fill = 0) %>%
+  ungroup() 
+
+# Load a list of stop words
+stopwords_nopunct <- stopwords(language = 'en', source = 'snowball') %>% 
+  str_remove_all('[[:punct:]]')
+
+# Remove stop words
+claims_test_tfidf <- claims_test_tfidf[, !names(claims_test_tfidf) %in% stopwords_nopunct]
+
+# Align the dimention of claims_test_tfidf claims_clean_tfidf
+claims_test_tfidf = claims_test_tfidf %>%
+  bind_cols(as.data.frame(matrix(0, nrow = nrow(claims_test_tfidf), 
+                                 ncol = length(setdiff(names(claims_clean_tfidf), names(claims_test_tfidf))), 
+                                 dimnames = list(NULL, setdiff(names(claims_clean_tfidf), names(claims_test_tfidf)))))) %>%
+  select(all_of(names(claims_clean_tfidf))) %>% 
+  select(-bclass, -mclass)
+
+```
+
+```{r}
+# Make predictions on the testing data
+claims_test_tfidf_id = claims_test_tfidf %>% select(.id)
+claims_test_tfidf_predictor = claims_test_tfidf %>% select(-.id) %>% as.matrix() ###### use this directly for multiclass 
+
+binary_prediction = model %>% predict(claims_test_tfidf_predictor)
+
+pred_df = claims_test_tfidf_id %>% 
+  mutate(bclass.pred = binary_prediction) %>% 
+  mutate(bclass.pred = ifelse(bclass.pred > 0.5, 2, 1)) %>% 
+  mutate(bclass.pred = binary_levels[bclass.pred])
+```
+
+
+##### multi class
+
+```{r}
+# partition
+set.seed(111524)
+partitions <- claims_clean_tfidf %>%
+  initial_split(prop = 0.8)
+
+x_train = training(partitions) %>% 
+  select(-mclass, -bclass, -.id) %>% 
+  as.matrix
+
+y_train = training(partitions) %>% 
+  pull(mclass) %>% 
+  factor() %>% 
+  as.numeric() - 1
+multiclass_levels = levels(training(partitions) %>% pull(mclass) %>% factor())
+
+x_test = testing(partitions) %>% 
+  select(-mclass, -bclass, -.id) %>% 
+  as.matrix()
+
+y_test = testing(partitions) %>% 
+  pull(mclass, bclass) %>% 
+  factor() %>% # use as.matrix for multiclass
+  as.numeric() - 1
+  
+```
+
+```{r}
+# Specify model type
+library(keras3)
+
+# Model building
+model <- keras_model_sequential(input_shape = ncol(x_train)) %>%
+  layer_dense(256) %>%
+  layer_dense(256) %>% 
+  layer_dense(5) %>%
+  layer_activation(activation = 'softmax')
+
+summary(model)
+```
+
+```{r}
+# compile the model
+model %>%
+  compile(
+    loss = 'sparse_categorical_crossentropy',
+    optimizer = optimizer_adam(),
+    metrics = list('sparse_categorical_accuracy')
+  )
+```
+
+```{r}
+# Fit the model, with 10 epoch, and cross validation with validation split of 0.2
+history <- model %>%
+  fit(x = x_train,
+      y = y_train,
+      epochs = 6)
+```
+
+###### Evaluate prediction
+
+
+```{r}
+# Evaluate accuracy on testing set
+test_results <- model %>% evaluate(x_test, y_test)
+```
+
+  We reached 80% sparse categorical accuracy on the testing data
+
+###### Make predictions on testing dataset
+
+```{r}
+multiclass_prediction = model %>% predict(claims_test_tfidf_predictor)
+
+pred_df = pred_df %>% 
+  cbind(data.frame(multiclass_prediction)) %>% 
+  rowwise() %>% 
+  mutate(mclass.pred = which.max(c_across(X1:X5))) %>%
+  ungroup() %>% 
+  select(.id, bclass.pred, mclass.pred) %>% 
+  mutate(mclass.pred = multiclass_levels[mclass.pred])
+
+# Save the results
+save(pred_df, file = "../results/preds-group[N].RData")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
+#### Approach 1: DistilBERT with R
+
+```{r}
+require(tidyverse)
+require(tidytext)
+require(textstem)
+require(rvest)
+require(qdapRegex)
+require(stopwords)
+require(tokenizers)
+library(rsample)
+library(keras3)
+```
+
+```{r}
+# predefined functions
+# function to parse html and clean text
+parse_fn <- function(.html){
+  read_html(.html) %>%
+    html_elements('p, h1, h2, h3, h4, h5') %>% # Include header for better result, product of trial and error
+    html_text2() %>%
+    str_c(collapse = ' ') %>%
+    rm_url() %>%
+    rm_email() %>%
+    str_remove_all('\'') %>%
+    str_replace_all(paste(c('\n', 
+                            '[[:punct:]]', 
+                            'nbsp', 
+                            '[[:digit:]]', 
+                            '[[:symbol:]]'),
+                          collapse = '|'), ' ') %>%
+    str_replace_all("([a-z])([A-Z])", "\\1 \\2") %>%
+    tolower() %>%
+    str_replace_all("\\s+", " ")
+}
+
+# function to apply to claims data
+parse_data <- function(.df){
+  out <- .df %>%
+    filter(str_detect(text_tmp, '<!')) %>%
+    rowwise() %>%
+    mutate(text_clean = parse_fn(text_tmp)) %>%
+    unnest(text_clean) 
+  return(out)
+}
+
+nlp_fn <- function(parse_data.out){
+  out <- parse_data.out %>% 
+    unnest_tokens(output = token, 
+                  input = text_clean, 
+                  token = 'words',
+                  stopwords = str_remove_all(stop_words$word, 
+                                             '[[:punct:]]')) %>%
+    mutate(token.lem = lemmatize_words(token)) %>%
+    filter(str_length(token.lem) > 2) %>%
+    count(.id, bclass, token.lem, name = 'n') %>%
+    bind_tf_idf(term = token.lem, 
+                document = .id,
+                n = n) %>%
+    pivot_wider(id_cols = c('.id', 'bclass'),
+                names_from = 'token.lem',
+                values_from = 'tf_idf',
+                values_fill = 0)
+  return(out)
+}
+
+
+# Load and parse the data
+# load raw data
+load('../data/claims-raw.RData')
+
+# preprocess (will take a minute or two)
+claims_clean <- claims_raw %>%
+  parse_data()
+
+claims_clean = claims_clean %>% 
+  select(.id, mclass, bclass, text_clean)
 ```
 
 ```{r}
@@ -363,8 +985,8 @@ partitions <- claims_clean %>%
   initial_split(prop = 0.8)
 
 x_train = training(partitions) %>% 
-  select(text_clean) %>% 
-  as.vector()
+  select(text_clean) 
+x_train = x_train$text_clean
 
 y_train = training(partitions) %>% 
   pull(bclass) %>% 
@@ -372,28 +994,35 @@ y_train = training(partitions) %>%
   as.numeric() - 1
 
 x_test = testing(partitions) %>% 
-  select(text_clean) %>% 
-  as.vector()
+  select(text_clean)
+x_test = x_test$text_clean
 
 y_test = testing(partitions) %>% 
   pull(mclass, bclass) %>% 
   as.matrix()
-  
+
 ```
 
 ```{r}
 library(text)
 # Pre-trained embeddings using BERT
-text_embeddings <- text::textEmbed(texts = x_train, model = "bert-base-uncased")
+text_embeddings = text::textEmbed(texts = x_train, 
+                                  model = "bert-base-uncased",
+                                  aggregation_from_tokens_to_texts = "mean",
+                                  aggregation_from_tokens_to_word_types = NULL)
+text_embeddings = text_embeddings$texts$texts
+
 
 embeddings <- text::textEmbed(
   texts = c("This is a test sentence.", "Another example."),
   model = "bert-base-uncased"
 )
+embeddings$texts$texts
+
 
 model <- keras_model_sequential() %>%
-  layer_gru(units = 64, input_shape = c(1000, 1)) %>%
-  layer_dense(units = 1, activation = "sigmoid")  # Binary classification
+  layer_dense(units = 128, activation = "relu", input_shape = c(ncol(text_embeddings))) %>%
+  layer_dense(units = 1, activation = "sigmoid") # Binary Classification
 
 model %>% compile(
   loss = "binary_crossentropy",
@@ -403,17 +1032,17 @@ model %>% compile(
 
 # Train the model
 history <- model %>% fit(
-  x = x_train, 
+  x = text_embeddings, 
   y = y_train,
   epochs = 8,
-  batch_size = 128,
+  batch_size = 32,
   validation_split = 0.2
 )
 
 
 
 
-
+1+1
 
 
 
@@ -549,7 +1178,7 @@ print(svm_tuned)
  
  
  
-#### Approach 3: DistilBERT
+#### Approach 3: DistilBERT with Python
   
 ```{r}
 library(reticulate)
@@ -570,7 +1199,6 @@ AUTOTUNE = tf.data.experimental.AUTOTUNE
 
 ```
 
-##### Binary classification
 
 ```{r}
 binary_data = claims_clean %>% select(bclass, text_clean) %>% mutate(bclass = ifelse(bclass == "Relevant claim content", 1, 0))
