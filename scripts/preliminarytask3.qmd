@@ -154,8 +154,8 @@ library(keras3)
 
 # Model building
 model <- keras_model_sequential(input_shape = ncol(x_train)) %>%
-  layer_dense(256) %>%
-  layer_dense(256) %>% 
+  layer_dense(128) %>%
+  layer_dense(128) %>% 
   layer_dense(1) %>%
   layer_activation(activation = 'sigmoid')
 
@@ -177,7 +177,7 @@ model %>%
 history <- model %>%
   fit(x = x_train,
       y = y_train,
-      epochs = 8,
+      epochs = 10,
       validation_split = 0.2)
 ```
 
