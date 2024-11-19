@@ -1,6 +1,6 @@
 set.seed(110122)
 
-# Tokenize into bigrams
+# tokenize into bigrams
 headers_bigrams <- claims_clean_headers %>%
   select(.id, bclass, text_clean) %>%
   unnest_tokens(output = bigram, 
@@ -9,7 +9,7 @@ headers_bigrams <- claims_clean_headers %>%
                 n = 2, 
                 stopwords = str_remove_all(stop_words$word, '[[:punct:]]'))
 
-# Count bigrams and compute TF-IDF
+# count bigrams and compute TF-IDF
 headers_bigrams_tfidf <- headers_bigrams %>%
   count(.id, bclass, bigram, name = 'n') %>%
   bind_tf_idf(term = bigram, 
@@ -21,7 +21,7 @@ headers_bigrams_tfidf <- headers_bigrams %>%
               values_from = tf_idf,
               values_fill = 0)
 
-# Partition data
+# partition data
 partitions_bigrams <- headers_bigrams_tfidf %>% initial_split(prop = 0.8)
 
 train_dtm_bigrams <- training(partitions_bigrams) %>%
@@ -39,7 +39,7 @@ test_labels_bigrams <- testing(partitions_bigrams) %>%
 train_dtm_bigrams_sparse <- train_dtm_bigrams %>%
   as.matrix() %>%
   as('sparseMatrix') 
-svd_out_bigrams <- sparsesvd(train_dtm_bigrams_sparse, rank=173)
+svd_out_bigrams <- sparsesvd(train_dtm_bigrams_sparse)
 
 # projected data frame
 train_dtm_projected2 <- svd_out_bigrams$u %*% diag(svd_out_bigrams$d)
@@ -52,7 +52,6 @@ train2 <- train_labels_bigrams %>%
   transmute(bclass = factor(bclass)) %>%
   bind_cols(train_dtm_projected2)
 
-
 fit2 <- glm(bclass~., data = train2, family = binomial)
 
 # re-projection
@@ -63,11 +62,10 @@ reproject_fn1 <- function(.dtm, train_projected) {
   return(test_projected)
 }
 
-
-#project test data
+# project test data
 test_dtm_projected2 <- reproject_fn1(.dtm = test_dtm_bigrams, svd_out_bigrams)
 
-#get predictions
+# get predictions
 preds2 <- predict(fit2,
                   newdata = as.data.frame(test_dtm_projected2),
                   type = 'link')
