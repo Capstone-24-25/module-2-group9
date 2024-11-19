@@ -35,20 +35,19 @@ test_labels_bigrams <- testing(partitions_bigrams) %>%
   select(.id, bclass)
 
 # first logistic regression
-
 # PCA projection for bigram data
 train_dtm_bigrams_sparse <- train_dtm_bigrams %>%
   as.matrix() %>%
   as('sparseMatrix') 
 svd_out_bigrams <- sparsesvd(train_dtm_bigrams_sparse, rank=173)
 
-#projected data frame
+# projected data frame
 train_dtm_projected2 <- svd_out_bigrams$u %*% diag(svd_out_bigrams$d)
 
 # assign column names
 colnames(train_dtm_projected2) <- paste0("PC", 1:ncol(train_dtm_projected2))
 
-#regression
+# regression
 train2 <- train_labels_bigrams %>%
   transmute(bclass = factor(bclass)) %>%
   bind_cols(train_dtm_projected2)
@@ -71,19 +70,31 @@ test_dtm_projected2 <- reproject_fn1(.dtm = test_dtm_bigrams, svd_out_bigrams)
 #get predictions
 preds2 <- predict(fit2,
                   newdata = as.data.frame(test_dtm_projected2),
-                  type = 'response')
+                  type = 'link')
 
-#test-labels with predictions
-pred_df2 <- test_labels_bigrams %>%
+test_data_combined <- as.data.frame(test_dtm_projected2) %>%
+  mutate(log_odds = preds2) # Add log-odds as a feature
+
+# fit second logistic regression 
+train_combined <- train_labels_bigrams %>%
   transmute(bclass = factor(bclass)) %>%
-  bind_cols(pred = as.numeric(preds2)) %>%
+  bind_cols(train_dtm_projected2, log_odds = predict(fit2, type = 'link'))
+
+fit_combined <- glm(bclass ~ ., data = train_combined, family = binomial)
+
+test_preds_combined <- predict(fit_combined, 
+                               newdata = test_data_combined, 
+                               type = 'response')
+
+pred_df_combined <- test_labels_bigrams %>%
+  transmute(bclass = factor(bclass)) %>%
+  bind_cols(pred = as.numeric(test_preds_combined)) %>%
   mutate(bclass.pred = factor(pred > 0.5, 
                               labels = levels(bclass)))
 
-# Calculate metrics
-metrics2 <- pred_df2 %>% class_metrics(truth = bclass, 
-                           estimate = bclass.pred, 
-                           pred, 
-                           event_level = 'second')
+metrics2 <- pred_df_combined %>% class_metrics(truth = bclass, 
+                                       estimate = bclass.pred, 
+                                       pred, 
+                                       event_level = 'second')
 
 metrics2
