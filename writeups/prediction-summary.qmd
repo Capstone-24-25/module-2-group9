@@ -7,8 +7,7 @@ date: today
 ### Abstract
 
 Provide a 3-5 sentence summary of your work on the primary task. Indicate what input data was used, what method was used for binary class predictions, what method was used for multiclass predictions, and what estimated accuracies were achieved.
-
-> *Header and paragraph content was scraped from the raw webpages and processed into term frequencies of word tokens. For binary classification, a two-layer neural network yielded an estimated 81.4% accuracy; for multiclass classification, a support vector machine gave 78% accuracy.*
+Similarly to other tasks, we parsed the raw claims data through our functions to clean, tokenize, and transform the data into a TF-IDF matrix, serving as our input data. For binary class predictions, a neural network model was utilized in tandem with sigmoid activation in the output layer. This had an estimated accuracy of 0.8064. For multiclass predictions, we once again utilized a neural network model. This time, the output layer consisted of softmax activation, with a crossentropy loss function to train classification for five layers. The estimated accuracy for multiclass predictions was 0.7898.
 
 ### Preprocessing
 
@@ -20,6 +19,8 @@ In one paragraph lay out your preprocessing pipeline. No need to provide exact s
 
 -   how cleaned text was represented quantitatively
 
+The preprocessing pipeline utilized functions to parse the HTML pages. Based on trial and error, the primary task data included both paragraph and header content. The cleaned claims content involved the removal of URLs, emails, punctuation, digits, symbols, whitespace, stop words, and converted everything to lower case. The clean data was tokenized into unigrams and transformed into a TF-IDF matrix to determine the importance of words across pages based on the frequency of term usage. The transformation allowed for a quantitative analysis later used in modeling.
+
 ### Methods
 
 Describe your final predictive models. Include one paragraph with details on the binary classification approach, and one on the multiclass approach. Include for each:
@@ -29,6 +30,10 @@ Describe your final predictive models. Include one paragraph with details on the
 -   model specification and hyperparameter selection
 
 -   training method
+
+The binary classifiation model utilized followed a neural network model with two hidden layers consisting of 256 units each. The total params was 11,255,809, with 0 non-trainable params. The model was compiled using binary cross-entropy for the loss function to measure the difference between expected probabilities and actual binary results, and optimized using the Adam optimizer. It was trained over six epochs using a cross-validation split of 20% for validation. The training method focused on minimizing the loss function while simultaneously optimiing our binary metrics of interest, AUC, accuracy, and loss.
+The multiclass classification model utilized a similar neural network model as the binary approach, with 2 hidden layers of 256 units each. In the multiclass model, the output layer was softmax, made to classify into 5 levels. There were 11,256,837 total params and no non-trainable params. During model compilation, a sparse categorical cross-entropy loss function was used so each instance belongs to only one of the five categories; the Adam optimizer was used again. Training once again included 6 epochs with an 80/20 split of training and validation sets to minimize loss and optimize our accuracy.
+
 
 ### Results
 
