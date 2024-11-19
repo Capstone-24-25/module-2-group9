@@ -19,7 +19,7 @@ In one paragraph lay out your preprocessing pipeline. No need to provide exact s
 
 -   how cleaned text was represented quantitatively
 
-The preprocessing pipeline utilized functions to parse the HTML pages. Based on trial and error, the primary task data included both paragraph and header content. The cleaned claims content involved the removal of URLs, emails, punctuation, digits, symbols, whitespace, stop words, and converted everything to lower case. The clean data was tokenized into unigrams and transformed into a TF-IDF matrix to determine the importance of words across pages based on the frequency of term usage. The transformation allowed for a quantitative analysis later used in modeling.
+The preprocessing pipeline utilized functions to parse the HTML pages. Based on trial and error, the primary task data included both paragraph and header content. The cleaned claims content involved the removal of URLs, emails, punctuation, digits, symbols, whitespace, stop words, and converted everything to lower case. The clean data was tokenized into unigrams and transformed into a TF-IDF matrix to determine the importance of words across pages based on the frequency of term usage. This method of ttransformation makes the text data into a numeric quivalent, allowing for a quantitative analysis later used in modeling.
 
 ### Methods
 
@@ -40,3 +40,21 @@ The multiclass classification model utilized a similar neural network model as t
 Indicate the predictive accuracy of the binary classifications and the multiclass classifications. Provide a table for each, and report sensitivity, specificity, and accuracy.[^1]
 
 [^1]: Read [this article](https://yardstick.tidymodels.org/articles/multiclass.html) on multiclass averaging.
+```{r}
+binary_results <- data.frame(
+  Metric = c("Sensitivity", "Specificity", "Accuracy"),
+  Value = c(0, 0, 0.8327) # fill in sensitivty/specificity
+)
+
+multiclass_results <- data.frame(
+  Metric = c("Sensitivity", "Specificity", "Accuracy"),
+  Value = c(0.73, 0.81, 0.77)  # fill in sensitivty and specificity
+)
+
+# Display the results
+print("Binary Classification Results:")
+print(binary_results)
+
+print("Multiclass Classification Results (Macro Avg):")
+print(multiclass_results)
+```
