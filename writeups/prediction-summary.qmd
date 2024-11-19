@@ -1,6 +1,6 @@
 ---
 title: "Predictive modeling of claims status"
-author: 'Rebecca Chang, '
+author: 'Rebecca Chang, Peter Xiong,'
 date: today
 ---
 
