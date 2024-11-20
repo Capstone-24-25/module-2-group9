@@ -31,8 +31,9 @@ Describe your final predictive models. Include one paragraph with details on the
 
 -   training method
 
-The binary classifiation model utilized followed a neural network model with two hidden layers consisting of 256 units each. The total params was 11,255,809, with 0 non-trainable params. The model was compiled using binary cross-entropy for the loss function to measure the difference between expected probabilities and actual binary results, and optimized using the Adam optimizer. It was trained over six epochs using a cross-validation split of 20% for validation. The training method focused on minimizing the loss function while simultaneously optimiing our binary metrics of interest, AUC, accuracy, and loss.
-The multiclass classification model utilized a similar neural network model as the binary approach, with 2 hidden layers of 256 units each. In the multiclass model, the output layer was softmax, made to classify into 5 levels. There were 11,256,837 total params and no non-trainable params. During model compilation, a sparse categorical cross-entropy loss function was used so each instance belongs to only one of the five categories; the Adam optimizer was used again. Training once again included 6 epochs with an 80/20 split of training and validation sets to minimize loss and optimize our accuracy.
+The binary classifiation model utilized followed a neural network model with two hidden layers consisting of 256 units each. The total params was 11,255,809, with 0 non-trainable params. The model was compiled using binary cross-entropy for the loss function to measure the difference between expected probabilities and actual binary results, and optimized using the Adam optimizer. It was trained over six epochs using a cross-validation split of 20% for validation. The training method focused on minimizing the loss function while simultaneously optimizing our binary metrics of interest, AUC, accuracy, and loss.
+
+The multiclass classification model utilized a similar neural network model as the binary approach, with 2 hidden layers of 256 units each. In the multiclass model, the output layer was softmax, made to classify into 5 levels. There were 11,256,837 total params and no non-trainable params. During model compilation, a sparse categorical cross-entropy loss function was used so each instance belongs to only one of the five categories; the Adam optimizer was used again. Training once again included 6 epochs with an 80/20 split of training and validation sets to minimize loss and optimize our sparse categorical accuracy.
 
 
 ### Results
@@ -43,12 +44,12 @@ Indicate the predictive accuracy of the binary classifications and the multiclas
 ```{r}
 binary_results <- data.frame(
   Metric = c("Sensitivity", "Specificity", "Accuracy"),
-  Value = c(0, 0, 0.8327) # fill in sensitivty/specificity
+  Value = c(0.82, 0.82, 0.82) # fill in sensitivty/specificity
 )
 
 multiclass_results <- data.frame(
   Metric = c("Sensitivity", "Specificity", "Accuracy"),
-  Value = c(0.73, 0.81, 0.77)  # fill in sensitivty and specificity
+  Value = c(0.78, 0.94, 0.82)  # fill in sensitivty and specificity
 )
 
 # Display the results

@@ -898,6 +898,20 @@ save(pred_df, file = "../results/preds-group[N].RData")
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
  
 #### Approach 1: DistilBERT with R
 
@@ -1038,15 +1052,6 @@ history <- model %>% fit(
   batch_size = 32,
   validation_split = 0.2
 )
-
-
-
-
-1+1
-
-
-
-
 
 
 model <- keras_model_sequential() %>%

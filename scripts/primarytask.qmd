@@ -4,7 +4,7 @@ format: html
 editor: visual
 ---
 
-## Primary task 
+## Primary task
 
 benchmark: accuracy: 0.835 roc_auc: 0.878
 
@@ -190,13 +190,23 @@ history <- model %>%
 
 ###### Evaluate prediction
 
-
 ```{r}
 # Evaluate accuracy on testing set
-test_results <- model %>% evaluate(x_test, y_test)
+library(yardstick)
+library(tibble)
+
+test_results = data.frame(truth = as.factor(y_test), prediction = predict(model, x_test)) %>% 
+  mutate(prediction = as.factor(ifelse(prediction > 0.5, 1, 0)))
+
+test_metrics = accuracy(test_results, truth = truth, estimate = prediction) %>% 
+  rbind(sens(test_results, truth = truth, estimate = prediction)) %>% 
+  rbind(spec(test_results, truth = truth, estimate = prediction))
+  
+
+
 ```
 
-  Our testing accuracy in theh etstin gdata is 0.82, which is the best we can obtain.
+Our testing accuracy in theh etstin gdata is 0.82, which is the best we can obtain.
 
 ###### Make predictions on testing dataset
 
@@ -259,7 +269,6 @@ pred_df = claims_test_tfidf_id %>%
   mutate(bclass.pred = ifelse(bclass.pred > 0.5, 2, 1)) %>% 
   mutate(bclass.pred = binary_levels[bclass.pred])
 ```
-
 
 ##### multi class
 
@@ -324,13 +333,25 @@ history <- model %>%
 
 ###### Evaluate prediction
 
-
 ```{r}
 # Evaluate accuracy on testing set
-test_results <- model %>% evaluate(x_test, y_test)
+library(yardstick)
+library(tibble)
+test_results = data.frame(truth = y_test) %>% 
+  data.frame(predict(model, x_test)) %>% 
+  rowwise() %>% 
+  mutate(prediction = which.max(c_across(X1:X5))) %>%
+  ungroup() %>% 
+  mutate(prediction = factor(prediction - 1)) %>% 
+  mutate(truth = factor(truth)) %>% 
+  select(truth, prediction) 
+
+test_metrics = accuracy(test_results, truth = truth, estimate = prediction) %>% 
+  rbind(sens(test_results, truth = truth, estimate = prediction)) %>% 
+  rbind(spec(test_results, truth = truth, estimate = prediction))
 ```
 
-  We reached 80% sparse categorical accuracy on the testing data
+We reached 80% sparse categorical accuracy on the testing data
 
 ###### Make predictions on testing dataset
 
@@ -349,22 +370,3 @@ pred_df = pred_df %>%
 #save(pred_df, file = "../results/preds-group[N].RData")
 
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
