@@ -26,7 +26,7 @@ require(tokenizers)
 library(reticulate)
 library(purrr)
 
-#install_keras(tensorflow = "2.16")
+# install_keras(tensorflow = "2.16")
 ```
 
 ```{r}
@@ -159,19 +159,22 @@ set.seed(111524)
 library(keras3)
 
 # Model building
-model <- keras_model_sequential(input_shape = ncol(x_train)) %>%
+binary_model <- keras_model_sequential(input_shape = ncol(x_train)) %>%
   layer_dense(256) %>%
   layer_dense(256) %>% 
   layer_dense(1) %>%
   layer_activation(activation = 'sigmoid')
 
-summary(model)
+summary(binary_model)
+
+# Save the binary class model
+# saveRDS(binary_model, file = "../results/binary_model.rds")
 ```
 
 ```{r}
 set.seed(111524)
 # compile the model
-model %>%
+binary_model %>%
   compile(
     loss = 'binary_crossentropy',
     optimizer = optimizer_adam(),
@@ -182,7 +185,7 @@ model %>%
 ```{r}
 set.seed(111524)
 # Fit the model, with 10 epoch, and cross validation with validation split of 0.2
-history <- model %>%
+history <- binary_model %>%
   fit(x = x_train,
       y = y_train,
       epochs = 6)
@@ -195,7 +198,7 @@ history <- model %>%
 library(yardstick)
 library(tibble)
 
-test_results = data.frame(truth = as.factor(y_test), prediction = predict(model, x_test)) %>% 
+test_results = data.frame(truth = as.factor(y_test), prediction = predict(binary_model, x_test)) %>% 
   mutate(prediction = as.factor(ifelse(prediction > 0.5, 1, 0)))
 
 test_metrics = accuracy(test_results, truth = truth, estimate = prediction) %>% 
@@ -262,7 +265,10 @@ claims_test_tfidf = claims_test_tfidf %>%
 claims_test_tfidf_id = claims_test_tfidf %>% select(.id)
 claims_test_tfidf_predictor = claims_test_tfidf %>% select(-.id) %>% as.matrix() ###### use this directly for multiclass 
 
-binary_prediction = model %>% predict(claims_test_tfidf_predictor)
+# Save the testing data
+# save(claims_test_tfidf_predictor, file = "../data/clean_test.RData")
+
+binary_prediction = binary_model %>% predict(claims_test_tfidf_predictor)
 
 pred_df = claims_test_tfidf_id %>% 
   mutate(bclass.pred = binary_prediction) %>% 
@@ -304,18 +310,21 @@ y_test = testing(partitions) %>%
 library(keras3)
 
 # Model building
-model <- keras_model_sequential(input_shape = ncol(x_train)) %>%
+multi_model <- keras_model_sequential(input_shape = ncol(x_train)) %>%
   layer_dense(256) %>%
   layer_dense(256) %>% 
   layer_dense(5) %>%
   layer_activation(activation = 'softmax')
 
-summary(model)
+summary(multi_model)
+
+# Save the multi class model
+# saveRDS(multi_model, file = "../results/multi_model.rds")
 ```
 
 ```{r}
 # compile the model
-model %>%
+multi_model %>%
   compile(
     loss = 'sparse_categorical_crossentropy',
     optimizer = optimizer_adam(),
@@ -325,7 +334,7 @@ model %>%
 
 ```{r}
 # Fit the model, with 10 epoch, and cross validation with validation split of 0.2
-history <- model %>%
+history <- multi_model %>%
   fit(x = x_train,
       y = y_train,
       epochs = 6)
@@ -338,7 +347,7 @@ history <- model %>%
 library(yardstick)
 library(tibble)
 test_results = data.frame(truth = y_test) %>% 
-  data.frame(predict(model, x_test)) %>% 
+  data.frame(predict(multi_model, x_test)) %>% 
   rowwise() %>% 
   mutate(prediction = which.max(c_across(X1:X5))) %>%
   ungroup() %>% 
@@ -356,7 +365,7 @@ We reached 80% sparse categorical accuracy on the testing data
 ###### Make predictions on testing dataset
 
 ```{r}
-multiclass_prediction = model %>% predict(claims_test_tfidf_predictor)
+multiclass_prediction = multi_model %>% predict(claims_test_tfidf_predictor)
 
 pred_df = pred_df %>% 
   cbind(data.frame(multiclass_prediction)) %>% 
