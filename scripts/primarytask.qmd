@@ -250,7 +250,7 @@ stopwords_nopunct <- stopwords(language = 'en', source = 'snowball') %>%
 # Remove stop words
 claims_test_tfidf <- claims_test_tfidf[, !names(claims_test_tfidf) %in% stopwords_nopunct]
 
-# Align the dimention of claims_test_tfidf claims_clean_tfidf
+# Align the dimension of claims_test_tfidf claims_clean_tfidf
 claims_test_tfidf = claims_test_tfidf %>%
   bind_cols(as.data.frame(matrix(0, nrow = nrow(claims_test_tfidf), 
                                  ncol = length(setdiff(names(claims_clean_tfidf), names(claims_test_tfidf))), 

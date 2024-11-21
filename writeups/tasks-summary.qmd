@@ -1,6 +1,6 @@
 ---
 title: "Summary of exploratory tasks"
-author: 'Leena Anqud, Rebecca Chang, Peter Xiong,'
+author: 'Leena Anqud, Rebecca Chang, Peter Xiong, Kuan-I Lu'
 date: today
 ---
 
