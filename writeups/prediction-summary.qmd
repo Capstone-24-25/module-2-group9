@@ -5,20 +5,23 @@ date: today
 ---
 
 ### Abstract
+
 Similarly to other tasks, we parsed the raw claims data through our functions to clean, tokenize, and transform the data into a TF-IDF matrix, serving as our input data. For binary class predictions, a neural network model was utilized in tandem with sigmoid activation in the output layer. This had an estimated accuracy of 0.8064. For multiclass predictions, we once again utilized a neural network model. This time, the output layer consisted of softmax activation, with a crossentropy loss function to train classification for five layers. The estimated accuracy for multiclass predictions was 0.7898.
 
 ### Preprocessing
-The preprocessing pipeline utilized functions to parse the HTML pages. Based on trial and error, the primary task data included both paragraph and header content. The cleaned claims content involved the removal of URLs, emails, punctuation, digits, symbols, whitespace, stop words, and converted everything to lower case. The clean data was tokenized into unigrams and transformed into a TF-IDF matrix to determine the importance of words across pages based on the frequency of term usage. This method of ttransformation makes the text data into a numeric quivalent, allowing for a quantitative analysis later used in modeling.
+
+The preprocessing pipeline utilized functions to parse the HTML pages. Based on trial and error, the primary task data included both paragraph and header content. The cleaned claims content involved the removal of URLs, emails, punctuation, digits, symbols, whitespace, stop words, and converted everything to lower case. The clean data was tokenized into unigrams and transformed into a TF-IDF matrix to determine the importance of words across pages based on the frequency of term usage. This method of transformation makes the text data into a numeric equivalent, allowing for a quantitative analysis later used in modeling.
 
 ### Methods
-For both the binary approach and the multiclass approach, we attempted the usage of multiple models. These models including recurrent neural network, long short term memory RNN, and DistilBert. However, these particular models require sequential data and are incompatible with the TF-IDF matrix approach that was necessary to quantify our analysis. Additionally, with the raw data, the corpus was not large enough for good results, initially capping our accuracy around 0.6. To cope with these challenges, we turned to a feed forward neural network, ultimately refining this model until we received around 0.8 accuracy on the testing data. 
 
-The binary classifiation model utilized followed a FFNN model with two hidden layers consisting of 256 units each. The total params was 11,255,809, with 0 non-trainable params. The model was compiled using binary cross-entropy for the loss function to measure the difference between expected probabilities and actual binary results, and optimized using the Adam optimizer. It was trained over six epochs using a cross-validation split of 20% for validation. The training method focused on minimizing the loss function while simultaneously optimizing our binary metrics of interest, AUC, accuracy, and loss.
+For both the binary approach and the multiclass approach, we attempted the usage of multiple models. These models including recurrent neural network, long short term memory RNN, and DistilBert. However, these particular models require sequential data and are incompatible with the TF-IDF matrix approach that was necessary to quantify our analysis. Additionally, with the raw data, the corpus was not large enough for good results, initially capping our accuracy around 0.6. To cope with these challenges, we turned to a feed forward neural network, ultimately refining this model until we received around 0.8 accuracy on the testing data.
+
+The binary classification model utilized followed a FFNN model with two hidden layers consisting of 256 units each. The total params was 11,255,809, with 0 non-trainable params. The model was compiled using binary cross-entropy for the loss function to measure the difference between expected probabilities and actual binary results, and optimized using the Adam optimizer. It was trained over six epochs using a cross-validation split of 20% for validation. The training method focused on minimizing the loss function while simultaneously optimizing our binary metrics of interest, AUC, accuracy, and loss.
 
 The multiclass classification model utilized a similar FFNN model as the binary approach, with 2 hidden layers of 256 units each. In the multiclass model, the output layer was softmax, made to classify into 5 levels. There were 11,256,837 total params and no non-trainable params. During model compilation, a sparse categorical cross-entropy loss function was used so each instance belongs to only one of the five categories; the Adam optimizer was used again. Training once again included 6 epochs with an 80/20 split of training and validation sets to minimize loss and optimize our sparse categorical accuracy.
 
-
 ### Results
+
 ```{r}
 binary_results <- data.frame(
   Metric = c("Sensitivity", "Specificity", "Accuracy"),
